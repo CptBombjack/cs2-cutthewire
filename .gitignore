@@ -1,0 +1,7 @@
+﻿.DS_Store
+
+# Ignore obj directories in the root of each project
+**/obj/
+
+# Ignore bin directories in the root of each project
+**/bin/
