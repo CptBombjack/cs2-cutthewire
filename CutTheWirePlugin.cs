@@ -27,7 +27,7 @@ public class Config
 [MinimumApiVersion(129)]
 public class CutTheWirePlugin : BasePlugin
 {
-    private const string Version = "1.1.2";
+    private const string Version = "1.2.1";
     
     public override string ModuleName => "Cut the Wire Plugin";
     public override string ModuleVersion => Version;
