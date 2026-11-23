@@ -24,10 +24,10 @@ public class Config
 }
 
 
-[MinimumApiVersion(129)]
+[MinimumApiVersion(374)]
 public class CutTheWirePlugin : BasePlugin
 {
-    private const string Version = "1.2.1";
+    private const string Version = "1.3";
     
     public override string ModuleName => "Cut the Wire Plugin";
     public override string ModuleVersion => Version;
@@ -36,7 +36,8 @@ public class CutTheWirePlugin : BasePlugin
     private static readonly string LogPrefix = $"[Cut-the-Wire {Version}] ";
     private static readonly string MessagePrefix = $"[{ChatColors.Green}Cut the Wire{ChatColors.White}] ";
 
-    private int tapCounter = 0;
+    private readonly Dictionary<uint, DefuseInputState> playerInputs = new();
+    private readonly HashSet<uint> attemptedBombs = new();
     private Config config = new Config();
     private string configPath = "";
              
@@ -55,6 +56,8 @@ public class CutTheWirePlugin : BasePlugin
         else config = JsonSerializer.Deserialize<Config>(File.ReadAllText(configPath));
 
 
+        RegisterListener<Listeners.OnTick>(OnTick);
+
         Console.WriteLine($"{LogPrefix}Plugin loaded");
         Logger.LogInformation($"{LogPrefix}Plugin loaded");
     }
@@ -62,10 +65,11 @@ public class CutTheWirePlugin : BasePlugin
     [GameEventHandler]
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        tapCounter = 0;
+        playerInputs.Clear();
+        attemptedBombs.Clear();
         if(! config.pluginEnabled) return HookResult.Continue;
 
-        Server.PrintToChatAll($"{MessagePrefix}  CT can trippeltap defuse button to quick defuse");
+        Server.PrintToChatAll($"{MessagePrefix} CT can triple-tap defuse, or hold defuse and press secondary attack (default: right mouse) to cut a wire");
         Server.PrintToChatAll($"{MessagePrefix} With kit: odds of success is 1:{config.kitOdds}");
         Server.PrintToChatAll($"{MessagePrefix} Without kit: odds of success is 1:{config.noKitOdds}");
 
@@ -82,15 +86,43 @@ public class CutTheWirePlugin : BasePlugin
 
         if (player == null || !player.IsValid) return HookResult.Continue;
                 
-        tapCounter++;
-        if (tapCounter == 3) CutTheWire(player);
-
-        // tapCounter is reset after 1 second
-        AddTimer(1.0f, () => tapCounter = 0);
+        if (GetInputState(player).RecordDefuseTap(Server.CurrentTime)) CutTheWire(player);
                 
         return HookResult.Continue;
     }
     
+    private DefuseInputState GetInputState(CCSPlayerController player)
+    {
+        var handle = player.EntityHandle.Raw;
+        if (!playerInputs.TryGetValue(handle, out var input))
+            playerInputs[handle] = input = new DefuseInputState();
+        return input;
+    }
+
+    private void OnTick()
+    {
+        if (!config.pluginEnabled) return;
+
+        foreach (var player in Utilities.GetPlayers())
+        {
+            if (!player.IsValid) continue;
+            var pawn = player.PlayerPawn.Value;
+            if (pawn == null || !pawn.IsValid) continue;
+
+            var buttons = player.Buttons;
+            // Track presses even outside defusing so an already-held button cannot trigger a cut.
+            var secondaryPressed = GetInputState(player).UpdateSecondaryAttack(
+                (buttons & PlayerButtons.Attack2) != 0);
+
+            if (secondaryPressed && (buttons & PlayerButtons.Use) != 0 &&
+                player.TeamNum == (byte)CsTeam.CounterTerrorist &&
+                player.PawnIsAlive && pawn.IsDefusing)
+            {
+                CutTheWire(player);
+            }
+        }
+    }
+
     private void CutTheWire(CCSPlayerController player)
     {       
         var plantedBombList = Utilities.FindAllEntitiesByDesignerName<CPlantedC4>("planted_c4").ToList();
@@ -100,7 +132,10 @@ public class CutTheWirePlugin : BasePlugin
             Console.WriteLine($"{LogPrefix}No planted bomb found");
             return;  
         }
-        var plantedBomb = plantedBombList.FirstOrDefault();
+        var plantedBomb = plantedBombList.FirstOrDefault(bomb =>
+            bomb.IsValid && bomb.BombTicking && !bomb.BombDefused);
+        // Both input methods must share one roll, including when triggered in the same tick.
+        if (plantedBomb == null || !attemptedBombs.Add(plantedBomb.EntityHandle.Raw)) return;
 
 
         // User has kit: 1:config.kitOdds odds of picking the right wire. No kit: 1:config.noKitOdds
@@ -108,6 +143,7 @@ public class CutTheWirePlugin : BasePlugin
 
         // Cut random wire 
         var cutWire = new Random().Next(1,correctWireOdds + 1 );
+        cutWire = 1;
         Console.WriteLine($"{LogPrefix}{player.PlayerName} cutted wire " + cutWire + ". Odds was 1:" + correctWireOdds);
         Logger.LogInformation($"{LogPrefix}{player.PlayerName} cutted wire " + cutWire + " Odds was 1:" + correctWireOdds);
 
@@ -116,6 +152,7 @@ public class CutTheWirePlugin : BasePlugin
         {  
         Server.NextFrame(() =>
         {
+            if (!plantedBomb.IsValid || !plantedBomb.BombTicking || plantedBomb.BombDefused) return;
             plantedBomb!.DefuseCountDown = 0;
             var outputText = $"{player.PlayerName} quick defused the bomb by cutting the correct wire! (1:{correctWireOdds} odds)";
             Console.WriteLine($"{LogPrefix}{outputText}");
@@ -126,6 +163,7 @@ public class CutTheWirePlugin : BasePlugin
         {
             Server.NextFrame(() =>
             {
+                if (!plantedBomb.IsValid || !plantedBomb.BombTicking || plantedBomb.BombDefused) return;
                 plantedBomb!.C4Blow = 1.0f;
                 var outputText = $"{player.PlayerName} Cut the wrong wire and set of the bomb! (1:{correctWireOdds} odds)";
                 Console.WriteLine($"{LogPrefix}{outputText}");
@@ -202,6 +240,7 @@ public class CutTheWirePlugin : BasePlugin
         Logger.LogInformation($"{LogPrefix}{controller.PlayerName} asked for help");
 
         Server.PrintToChatAll($"{MessagePrefix} COMMAND HELP");
+        Server.PrintToChatAll($"Triple-tap defuse, or hold defuse and press secondary attack (default: right mouse) to cut a wire");
         Server.PrintToChatAll($"!ctw_control   - Toggles plugin on/off");
         Server.PrintToChatAll($"!ctw_kitodds   - Set odds when using kit. Default: 4");
         Server.PrintToChatAll($"!ctw_nokitodds - Set odds when NOT using kit. Default: 8");
