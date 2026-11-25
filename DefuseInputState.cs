@@ -3,7 +3,7 @@ namespace CutTheWirePlugin;
 internal sealed class DefuseInputState
 {
     private readonly Queue<float> defuseTaps = new();
-    private bool secondaryAttackHeld;
+    private bool primaryAttackHeld;
 
     public bool RecordDefuseTap(float currentTime)
     {
@@ -17,10 +17,10 @@ internal sealed class DefuseInputState
         return true;
     }
 
-    public bool UpdateSecondaryAttack(bool isHeld)
+    public bool UpdatePrimaryAttack(bool isHeld)
     {
-        var pressed = isHeld && !secondaryAttackHeld;
-        secondaryAttackHeld = isHeld;
+        var pressed = isHeld && !primaryAttackHeld;
+        primaryAttackHeld = isHeld;
         return pressed;
     }
 }

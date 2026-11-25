@@ -27,7 +27,7 @@ public class Config
 [MinimumApiVersion(374)]
 public class CutTheWirePlugin : BasePlugin
 {
-    private const string Version = "1.3";
+    private const string Version = "1.3.1";
     
     public override string ModuleName => "Cut the Wire Plugin";
     public override string ModuleVersion => Version;
@@ -69,7 +69,7 @@ public class CutTheWirePlugin : BasePlugin
         attemptedBombs.Clear();
         if(! config.pluginEnabled) return HookResult.Continue;
 
-        Server.PrintToChatAll($"{MessagePrefix} CT can triple-tap defuse, or hold defuse and press secondary attack (default: right mouse) to cut a wire");
+        Server.PrintToChatAll($"{MessagePrefix} CT can triple-tap defuse, or hold defuse and press primary attack (default: left mouse) to cut a wire");
         Server.PrintToChatAll($"{MessagePrefix} With kit: odds of success is 1:{config.kitOdds}");
         Server.PrintToChatAll($"{MessagePrefix} Without kit: odds of success is 1:{config.noKitOdds}");
 
@@ -111,10 +111,10 @@ public class CutTheWirePlugin : BasePlugin
 
             var buttons = player.Buttons;
             // Track presses even outside defusing so an already-held button cannot trigger a cut.
-            var secondaryPressed = GetInputState(player).UpdateSecondaryAttack(
-                (buttons & PlayerButtons.Attack2) != 0);
+            var primaryPressed = GetInputState(player).UpdatePrimaryAttack(
+                (buttons & PlayerButtons.Attack) != 0);
 
-            if (secondaryPressed && (buttons & PlayerButtons.Use) != 0 &&
+            if (primaryPressed && (buttons & PlayerButtons.Use) != 0 &&
                 player.TeamNum == (byte)CsTeam.CounterTerrorist &&
                 player.PawnIsAlive && pawn.IsDefusing)
             {
@@ -143,7 +143,6 @@ public class CutTheWirePlugin : BasePlugin
 
         // Cut random wire 
         var cutWire = new Random().Next(1,correctWireOdds + 1 );
-        cutWire = 1;
         Console.WriteLine($"{LogPrefix}{player.PlayerName} cutted wire " + cutWire + ". Odds was 1:" + correctWireOdds);
         Logger.LogInformation($"{LogPrefix}{player.PlayerName} cutted wire " + cutWire + " Odds was 1:" + correctWireOdds);
 
@@ -240,7 +239,7 @@ public class CutTheWirePlugin : BasePlugin
         Logger.LogInformation($"{LogPrefix}{controller.PlayerName} asked for help");
 
         Server.PrintToChatAll($"{MessagePrefix} COMMAND HELP");
-        Server.PrintToChatAll($"Triple-tap defuse, or hold defuse and press secondary attack (default: right mouse) to cut a wire");
+        Server.PrintToChatAll($"Triple-tap defuse, or hold defuse and press primary attack (default: left mouse) to cut a wire");
         Server.PrintToChatAll($"!ctw_control   - Toggles plugin on/off");
         Server.PrintToChatAll($"!ctw_kitodds   - Set odds when using kit. Default: 4");
         Server.PrintToChatAll($"!ctw_nokitodds - Set odds when NOT using kit. Default: 8");

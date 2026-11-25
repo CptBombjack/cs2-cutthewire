@@ -4,7 +4,7 @@ You are the last CT standing. The bomb has been planted and several T are protec
 
 This script lets a CT try to instantly defuse the bomb by cutting a wire in either of two ways:
 - Start defusing three times within one second.
-- Start defusing, then press secondary attack (right mouse button by default) while actively defusing.
+- Start defusing, then press primary attack (left mouse button by default) while actively defusing.
 
 Your odds (configurable) of defusing the bomb depends on if you are carrying the defuse kit or not:
 - With kit: default odds is 1:3
